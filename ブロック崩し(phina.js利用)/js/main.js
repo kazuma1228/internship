@@ -20,6 +20,9 @@ var PADDLE_WIDTH    = 150; //球を弾くバーのx軸方向(横)の幅
 var PADDLE_HEIGHT   = 32; //球を弾くバーのy軸方向(縦)の幅
 var BALL_RADIUS     = 16; //球の半径
 var BALL_SPEED      = 16; //球の速さ
+var ITEM_RADIUS     = 16; //アイテムの半径
+var ITEM_SPEED      = 16; //アイテムの速さ
+var ITEM_FALL_START = 5; //アイテムを落下させるコンボ数(コンボ数が5の倍数の時にアイテムを落とす場合、5を設定)
 
 var BOARD_SIZE      = SCREEN_WIDTH - BOARD_PADDING*2; //ブロック間の距離感
 var BOARD_OFFSET_X  = BOARD_PADDING+BLOCK_SIZE/2; //スクリーンのx軸方向(横)の投影位置
@@ -63,7 +66,17 @@ phina.define("MainScene", {
 
         // ボールの描画
         this.ball = Ball().addChildTo(this);
-        
+
+        // アイテムの描画
+        this.item = Item().addChildTo(this);
+        /* アイテムの初期位置の設定。これを設定しなかった場合ゲーム開始時にスクリーン左上からアイテムが落ちてくるため
+           ゲーム起動時のアイテム起動はスクリーン外に表示するようにする
+         */
+        this.item.setPosition(-100, 0);
+        // アイテム取得に関するフラグの初期化
+        item_flug = false;
+        item_effect = false;
+
         // パドルの描画
         this.paddle = Paddle().addChildTo(this);
         // パドルの初期位置の設定
@@ -78,6 +91,8 @@ phina.define("MainScene", {
             this.ballSpeed = BALL_SPEED; //射出時のボールの速さ設定
         });
 
+        // アイテムの初期値
+        this.itemSpeed = ITEM_SPEED; //ボールの速さの初期化
         // スコアの初期値
         this.score = 0;
         // 時間の初期値
@@ -103,10 +118,15 @@ phina.define("MainScene", {
             this.paddle.right = this.gridX.width;
         }
 
-        // スピードの数分, 移動と衝突判定を繰り返す
+        // ボールのスピードの数分, 移動と衝突判定を繰り返す
         (this.ballSpeed).times(function() {
             this.ball.move();
             this.checkHit();
+        }, this);
+
+        // アイテムのスピードの数分, 移動と衝突判定を繰り返す
+        (this.itemSpeed).times(function() {
+            this.item.move();
         }, this);
 
         // ブロックがすべてなくなったらクリア
@@ -118,6 +138,9 @@ phina.define("MainScene", {
     checkHit: function() {
         // ボールの生成
         var ball = this.ball;
+
+        // アイテムの生成
+        var item = this.item;
 
         // ボールの設定 スタート
         // 画面外対応
@@ -155,7 +178,7 @@ phina.define("MainScene", {
             this.combo = 0;
         }
 
-        this.group.children.some(function(block) {
+        this.group.children.some(function (block) {
             // ボールがブロックで跳ね返った時の動作
             if (ball.hitTestElement(block)) {
                 var dq = Vector2.sub(ball, block);
@@ -188,7 +211,21 @@ phina.define("MainScene", {
                 block.remove();
 
                 this.combo += 1; //コンボ数カウント。ボールがバーにぶつからない間にブロックを連続で消した時に加算する
-                this.score += this.combo*100; //コンボ補正による加算値アップ
+                this.score += this.combo * 100; //コンボ補正による加算値アップ
+
+                // コンボ数がITEM_FALL_STARTの倍数の時、アイテムを出現させる
+                if (this.combo % ITEM_FALL_START == 0) {
+                    // アイテムの描画
+                    this.item = Item().addChildTo(this);
+                    // アイテムの出現位置の設定。アイテム出現条件満たした時のボールの位置からアイテムを落とす。
+                    this.item.setPosition(this.ball.x, this.ball.y);
+                    // アイテムの落下開始
+                    this.itemSpeed = ITEM_SPEED; //射出時のアイテムの速さ設定
+                    // アイテム出現フラグON。アイテムが消えたらOFFにする。
+                    item_flug = true;
+                    // アイテム効果発動フラグOFF。アイテムの効果が発言したらONにする。
+                    item_effect = false;
+                }
 
                 var c = ComboLabel(this.combo).addChildTo(this);
                 c.x = this.gridX.span(12) + Math.randint(-50, 50); //コンボカウンターのx軸(横)方向表示位置計算。多少のランダム要素を出す為にrandintを利用
@@ -197,6 +234,46 @@ phina.define("MainScene", {
                 return true;
             }
         }, this);
+
+        if (item_flug == true && item_effect == false) {
+            // アイテムがパドルにあたった時の動作
+            itemcheck_flug = item.hitTestElement(this.paddle);
+            if (itemcheck_flug == true) {
+                // updateによってなんども効果抽選が行われるため、それを回避するためにフラグを利用する
+                itemcheck_flug = false;
+                // アイテムを取得したら削除する
+                item.remove();
+                item_flug = false;
+
+                // 効果抽選
+                effect = Math.randint(0, 50);
+
+                // 効果1
+                if (effect >= 0 && effect < 20) {
+                    // ボールの速さをダウンする
+                    if (this.ballSpeed > 3) {
+                        this.ballSpeed += -3;
+                    } else {
+                        this.ballSpeed = 1;
+                    }
+                }
+
+                // 効果2
+                if (effect >= 20 && effect < 40) {
+                    // スコア加算する
+                    this.score += this.combo * 300; // アイテム取得のため倍率は高めに設定
+                }
+
+                // 効果3
+                if (effect >= 40 && effect < 50) {
+                    // パドルの長さを増幅する
+                    this.paddle.width += this.paddle.width * 0.3;
+                }
+
+                // アイテムの効果発動
+                item_effect = true;
+            }
+        }
     },
 
     // ゲームクリア時に呼ばれる関数
@@ -267,7 +344,7 @@ phina.define('Ball', {
         });
 
         this.speed = 0; //ボールの速さの初期化。ゲーム開始時に必ずBALL_SPEEDが設定される。
-        this.direction = Vector2(1, -1).normalize(); //ボールの射出方向。右下斜め45度に射出してパドルに跳ね返るように射出する。
+        this.direction = Vector2(1, -1).normalize(); //ボールの射出方向。スクリーン左上が原点(0,0)となる。
     },
 
     // ボールの進行方向を設定する
@@ -283,6 +360,31 @@ phina.define('Ball', {
     // 跳ね返りの時にボールのy軸(縦)方向進行方向を反転する
     reflectY: function() {
         this.direction.y *= -1;
+    },
+});
+
+/*
+ * アイテムの設定値
+ */
+phina.define('Item', {
+    superClass: 'CircleShape',
+
+    init: function() {
+        this.superInit({
+            radius: ITEM_RADIUS, //アイテムの半径
+            fill: '#ee4380', //アイテムの色
+            stroke: null, // アイテムの外枠の線
+            cornerRadius: 4, // アイテムの丸み
+        });
+
+        this.speed = 15; //アイテムの速さ。
+        this.direction = Vector2(0, 1).normalize(); //アイテムの射出方向。ブロックに対して直角に落下させる。
+    },
+
+    // アイテムの進行方向を設定する
+    move: function() {
+        this.x += 0;
+        this.y += this.direction.y;
     },
 });
 
