@@ -223,7 +223,7 @@ phina.define("MainScene", {
                     this.itemSpeed = ITEM_SPEED; //射出時のアイテムの速さ設定
                     // アイテム出現フラグON。アイテムが消えたらOFFにする。
                     item_flug = true;
-                    // アイテム効果発動フラグOFF。アイテムの効果が発言したらONにする。
+                    // アイテム効果発動フラグOFF。アイテムの効果が発動したらONにする。
                     item_effect = false;
                 }
 
@@ -241,15 +241,21 @@ phina.define("MainScene", {
             if (itemcheck_flug == true) {
                 // updateによってなんども効果抽選が行われるため、それを回避するためにフラグを利用する
                 itemcheck_flug = false;
-                // アイテムを取得したら削除する
+                // アイテムを取得したらアイテム描画を削除する
                 item.remove();
                 item_flug = false;
 
-                // 効果抽選
-                effect = Math.randint(0, 50);
+                // 効果抽選。 1~100の値をeffectに代入(百分率の%表記と解釈してください)
+                effect = Math.randint(1, 100);
 
-                // 効果1
-                if (effect >= 0 && effect < 20) {
+                // 効果1(40%の確率で発動)
+                if (effect >= 1 && effect <= 40) {
+                    // スコア加算する
+                    this.score += this.combo * 300; // アイテム取得のため倍率は高めに設定
+                }
+
+                // 効果2(40%の確率で発動)
+                if (effect > 40 && effect <= 80) {
                     // ボールの速さをダウンする
                     if (this.ballSpeed > 3) {
                         this.ballSpeed += -3;
@@ -258,14 +264,8 @@ phina.define("MainScene", {
                     }
                 }
 
-                // 効果2
-                if (effect >= 20 && effect < 40) {
-                    // スコア加算する
-                    this.score += this.combo * 300; // アイテム取得のため倍率は高めに設定
-                }
-
-                // 効果3
-                if (effect >= 40 && effect < 50) {
+                // 効果3(20%の確率で発動)
+                if (effect > 80 && effect <= 100) {
                     // パドルの長さを増幅する
                     this.paddle.width += this.paddle.width * 0.3;
                 }
